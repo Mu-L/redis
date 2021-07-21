@@ -463,7 +463,7 @@ long long addReplyReplicationBacklog(client *c, long long offset) {
             (server.repl_backlog_size - j) : len;
 
         serverLog(LL_DEBUG, "[PSYNC] addReply() length: %lld", thislen);
-        addReplySds(c,sdsnewlen(server.repl_backlog + j, thislen));
+        addReplyProto(c,server.repl_backlog + j, thislen);
         len -= thislen;
         j = 0;
     }
@@ -2539,7 +2539,7 @@ write_error: /* Handle sendCommand() errors. */
 int connectWithMaster(void) {
     server.repl_transfer_s = server.tls_replication ? connCreateTLS() : connCreateSocket();
     if (connConnect(server.repl_transfer_s, server.masterhost, server.masterport,
-                NET_FIRST_BIND_ADDR, syncWithMaster) == C_ERR) {
+                server.bind_source_addr, syncWithMaster) == C_ERR) {
         serverLog(LL_WARNING,"Unable to connect to MASTER: %s",
                 connGetLastError(server.repl_transfer_s));
         connClose(server.repl_transfer_s);
@@ -2777,7 +2777,8 @@ void replicaofCommand(client *c) {
             return;
         }
 
-        if ((getLongFromObjectOrReply(c, c->argv[2], &port, NULL) != C_OK))
+        if (getRangeLongFromObjectOrReply(c, c->argv[2], 0, 65535, &port,
+                                          "Invalid master port") != C_OK)
             return;
 
         /* Check if we are already attached to the specified master */
